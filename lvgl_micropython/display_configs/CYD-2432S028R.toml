@@ -1,0 +1,78 @@
+[MCU.esp32]
+BOARD = "ESP32_GENERIC"
+# BOARD_VARIANT = "SPIRAM"  # CYD classic has no PSRAM; SPIRAM variant is safe but less efficient
+uart_repl_bitrate = 115200
+flash_size = 4
+ccache = true
+# optimize_size = true  # enable if firmware size is tight
+
+[SPI.Bus.spi_bus]
+host = 1
+mosi = 13
+miso = 12
+sck = 14
+
+[SPIBus.display_bus]
+spi_bus = "spi_bus"
+freq = 24000000
+dc = 2
+cs = 15
+
+
+[SPI.Bus.indev_bus]
+host = 2
+mosi= 32
+miso = 39
+sck = 25
+
+
+[SPI.Device.indev_device]
+spi_bus = "indev_bus"
+freq = 2000000
+cs = 33
+
+
+[ILI9341.display]
+data_bus = "display_bus"
+# Native panel is 240x320 portrait. Combined with set_rotation._90 below this
+# yields the classic CYD landscape 320x240. The _ORIENTATION_TABLE is indexed
+# by rotation and is portrait-native (index 0 = MADCTL 0x00 = 240x320), so
+# display_width/height MUST be 240x320 here or the address window overruns.
+display_width = 240
+display_height = 320
+backlight_pin = 21
+backlight_on_state = "ili9341.STATE_PWM"
+# The classic CYD ILI9341 panel is wired BGR. The driver default is RGB, which
+# swaps red/blue (red renders blue). BGR adds MADCTL bit 0x08, so landscape
+# (rotation _90) becomes 0x20 | 0x08 = 0x28, matching TFT_eSPI's CYD landscape.
+color_byte_order = "ili9341.BYTE_ORDER_BGR"
+color_space = "lv.COLOR_FORMAT.RGB565"
+rgb565_byte_swap = true
+
+[display._ORIENTATION_TABLE]
+# Indexed by rotation; each entry is the MADCTL value for that rotation.
+# index 0 (rot _0)   = 0x00  native portrait 240x320
+# index 1 (rot _90)  = 0x20  MV only -> upright landscape 320x240 (verified on
+#                            the classic CYD). NOT 0x60/0xA0, which are mirrored.
+# index 2 (rot _180) = 0xC0
+# index 3 (rot _270) = 0xA0
+value = [0, 32, 192, 160]
+
+
+[display.set_power]
+params = [true]
+
+[display.init]
+params = [1]
+
+[display.set_rotation]
+params = ["lv.DISPLAY_ROTATION._90"]
+
+[XPT2046.indev]
+device = "indev_device"
+
+[display.set_backlight]
+params = [100]
+
+[task_handler.TaskHandler]
+params=[]
