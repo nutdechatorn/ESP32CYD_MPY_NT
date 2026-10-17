@@ -1,0 +1,96 @@
+# Copyright (c) 2024 - 2025 Kevin G. Schlosser
+
+name: macOS build
+on:
+  push:
+  pull_request:
+
+jobs:
+
+  build_macos:
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-python@v6.1.0
+      with:
+        python-version: '3.11'
+
+    - name: Install Dependencies
+      run: |
+        brew install --force ninja 
+        brew install --force sdl2
+        brew install --force libffi
+        git submodule update --init -- lib/pycparser
+        git submodule update --init --jobs 4 -- lib/micropython        
+        git submodule update --init --jobs 4 -- lib/lvgl
+
+    # - name: Build STM32 port
+    #   run: python3 make.py stm32 submodules clean mpy_cross BOARD=STM32H7B3I_DK DISPLAY=rgb_display INDEV=gt911
+
+    # - name: Build Raspberry Pi PICO port
+    #   run: python3 make.py rp2 submodules clean mpy_cross BOARD=RPI_PICO DISPLAY=rgb_display INDEV=gt911
+
+    - name: Build macOS port
+      run: python3 make.py macOS DISPLAY=sdl_display INDEV=sdl_pointer
+
+    - uses: actions/upload-artifact@v5
+      with:
+        name: lvgl_micropy_macos
+        path: build/lvgl_micropy_macos
+        if-no-files-found: ignore
+
+  build_esp32:
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: carlosperate/arm-none-eabi-gcc-action@v1.11.1
+      with:
+        release: 'latest' # The arm-none-eabi-gcc release to use.
+
+    - uses: actions/setup-python@v6.1.0
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        git submodule update --init -- lib/pycparser
+        git submodule update --init --jobs 4 -- lib/micropython        
+        git submodule update --init --jobs 4 -- lib/lvgl        
+
+    - name: Cached Deps
+      id: cache-deps
+      uses: actions/cache@v4.3.0
+      with:
+        path: |
+          lib/esp-idf
+          ~/.espressif
+        key: ${{ runner.os }}-v4-deps
+
+    - name: Get Build Deps
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      run: |
+        git submodule update --init --jobs 4 -- lib/esp-idf
+        cd lib/esp-idf
+        git submodule update --init --jobs 4 -- components/bt/host/nimble/nimble components/esp_wifi components/esptool_py/esptool components/lwip/lwip components/mbedtls/mbedtls components/bt/controller/lib_esp32 components/bt/controller/lib_esp32c3_family
+        cd ../..
+        export "IDF_PATH=${GITHUB_WORKSPACE}/lib/esp-idf"
+        ./lib/esp-idf/install.sh all
+
+    # - name: Build STM32 port
+    #   run: python3 make.py stm32 submodules clean mpy_cross BOARD=STM32H7B3I_DK DISPLAY=rgb_display INDEV=gt911
+
+    # - name: Build Raspberry Pi PICO port
+    #   run: python3 make.py rp2 submodules clean mpy_cross BOARD=RPI_PICO DISPLAY=rgb_display INDEV=gt911
+
+    - name: Setup ESP-IDF
+      run: |
+        export "IDF_PATH=${GITHUB_WORKSPACE}/lib/esp-idf"
+        . ./lib/esp-idf/export.sh
+
+    - name: Build ESP32 port
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT DISPLAY=rgb_display INDEV=gt911

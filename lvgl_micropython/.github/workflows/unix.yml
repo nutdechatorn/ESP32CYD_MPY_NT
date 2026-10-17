@@ -1,0 +1,139 @@
+# Copyright (c) 2024 - 2025 Kevin G. Schlosser
+
+name: Unix build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build_esp32:
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - uses: actions/setup-python@v6.1.0
+      with:
+        python-version: '3.11'
+
+    - name: Install Deps
+      #        sudo apt-get update && sudo apt-get install --assume-yes --allow-downgrades --allow-remove-essential --allow-change-held-packages build-essential pkg-config cmake ninja-build ccache
+      run: |
+        git submodule update --init --depth 1 -- lib/pycparser
+        git submodule update --init --depth 1 --jobs 4 -- lib/micropython        
+        git submodule update --init --depth 1 --jobs 4 -- lib/lvgl
+
+    - name: Cached Deps
+      id: cache-deps
+      uses: actions/cache@v4.3.0
+      with:
+        path: |
+          lib/esp-idf
+          ~/.espressif
+        key: ${{ runner.os }}-v4-deps
+
+    - name: Get Build Deps
+      if: steps.cache-deps.outputs.cache-hit != 'true'
+      run: |
+        git submodule update --init --depth 1 --jobs 4 -- lib/esp-idf
+        cd lib/esp-idf
+        git submodule update --init --depth 1 --jobs 4 -- components/bt/host/nimble/nimble components/esp_wifi components/esptool_py/esptool components/lwip/lwip components/mbedtls/mbedtls components/bt/controller/lib_esp32 components/bt/controller/lib_esp32c3_family
+        cd ../..
+        export "IDF_PATH=${GITHUB_WORKSPACE}/lib/esp-idf"
+        ./lib/esp-idf/install.sh all
+
+    - name: Setup ESP-IDF
+      run: |
+        export "IDF_PATH=${GITHUB_WORKSPACE}/lib/esp-idf"
+        . ./lib/esp-idf/export.sh
+
+    - name: Build ESP32_GENERIC_P4 8
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_P4 --flash-size=8 DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_P4 C6_WIFI 8
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_P4 --flash-size=8 BOARD_VARIANT=C6_WIFI DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_S3 4
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_S3 SPIRAM_OCT 4
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_S3 OCT RAM 8
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT --flash-size=8 DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_S3 OCT RAM/FLASH 8
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT --flash-size=8 --octal-flash DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - name: Build ESP32_GENERIC_S3 OCT RAM/FLASH 16
+      run: python3 make.py esp32 BOARD=ESP32_GENERIC_S3 BOARD_VARIANT=SPIRAM_OCT --flash-size=16 --octal-flash DISPLAY=all INDEV=all EXPANDER=all --ccache --no-scrub
+
+    - uses: actions/upload-artifact@v5
+      with:
+        name: lvgl_micropy_ESP32
+        path: build/*.bin
+        if-no-files-found: ignore
+
+  build_unix:
+    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6.1.0
+      with:
+        python-version: '3.11'
+
+    - name: Install Deps
+      #        sudo apt-get update && sudo apt-get install --assume-yes --allow-downgrades --allow-remove-essential --allow-change-held-packages build-essential pkg-config cmake ninja-build libffi-dev gnome-desktop-testing libasound2-dev libpulse-dev libaudio-dev libjack-dev libsndio-dev libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev libdrm-dev libgbm-dev libgl1-mesa-dev libgles2-mesa-dev libegl1-mesa-dev libdbus-1-dev libibus-1.0-dev libudev-dev fcitx-libs-dev libpipewire-0.3-dev libwayland-dev libdecor-0-dev
+      run: |
+        git submodule update --init -- lib/pycparser
+        git submodule update --init --jobs 4 -- lib/micropython
+        git submodule update --init --jobs 4 -- lib/lvgl        
+        git submodule update --init --jobs 4 -- lib/SDL
+        cd lib/SDL
+        git checkout release-2.30.2
+        cd ../..
+
+    - name: Build Unix port
+      run: python3 make.py unix DISPLAY=sdl_display INDEV=sdl_pointer
+
+    - uses: actions/upload-artifact@v5
+      with:
+        name: lvgl_micropy_unix
+        path: build/lvgl_micropy_unix
+        if-no-files-found: ignore
+
+  # - name: Build Raspberry Pi PICO port
+  #   run: python3 make.py rp2 submodules clean mpy_cross BOARD=RPI_PICO DISPLAY=rgb_display INDEV=gt911
+
+  # build_stm32:
+  #   if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #  - uses: actions/checkout@v4
+  #
+  #  - uses: carlosperate/arm-none-eabi-gcc-action@v1.8.1
+  #    with:
+  #       release: 'latest' # 9-2020-q2 The arm-none-eabi-gcc release to use.
+  #
+  #  - uses: actions/setup-python@v5
+  #    with:
+  #      python-version: '3.11'
+  #
+  #  - name: Install Deps
+  #    run: |
+  #      sudo apt-get update && sudo apt-get install --assume-yes --allow-downgrades --allow-remove-essential --allow-change-held-packages build-essential pkg-config cmake ninja-build
+  #      git submodule update --init -- lib/pycparser
+  #      git submodule update --init --jobs 4 -- lib/micropython
+  #      git submodule update --init --jobs 4 -- lib/lvgl
+  #
+  #  - name: Build STM32 port
+  #    run: python3 make.py stm32 submodules clean mpy_cross BOARD=STM32H7B3I_DK DISPLAY=rgb_display INDEV=gt911
+  #
+  #  - uses: actions/upload-artifact@v4
+  #    with:
+  #      name: lvgl_micropy_ESP32_GENERIC_S3-8
+  #      path: build/lvgl_micropy_ESP32_GENERIC_S3-8.bin
+  #      if-no-files-found: ignore
