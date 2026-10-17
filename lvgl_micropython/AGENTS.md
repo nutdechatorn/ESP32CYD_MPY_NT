@@ -57,6 +57,27 @@ This is the tailored config for the classic CYD. Key points (already applied):
   landscape 320x240 (so `board.size()` / `get_horizontal_resolution()` return 320x240).
 - `optimize_size = true` is commented out; enable it if the image gets too large (see Size).
 
+## Config deltas vs upstream (`display_configs/CYD-2432S028R.toml`)
+
+The upstream file (last touched in commit `af63204`) needs the following edits for the
+classic CYD. `upstream -> here -> why`:
+
+| Key | Upstream | Here | Why |
+| --- | --- | --- | --- |
+| `BOARD_VARIANT` | `"SPIRAM"` | commented out | classic CYD has no PSRAM |
+| `flash_size` | (unset) | `4` | 4 MB flash |
+| `ccache` | (unset) | `true` | faster rebuilds |
+| `ILI9341.display.display_width/height` | `320 / 240` | `240 / 320` | panel is portrait-native; the address window overruns otherwise |
+| `backlight_on_state` | `st7789.STATE_PWM` | `ili9341.STATE_PWM` | match the actual driver |
+| `color_byte_order` | (unset = RGB) | `ili9341.BYTE_ORDER_BGR` | CYD panel is BGR; RGB swaps red/blue |
+| `_ORIENTATION_TABLE` | `[0, 96, 192, 160]` | `[0, 32, 192, 160]` | index 1 must be `0x20` (MV only), not mirrored |
+| `display.set_rotation` | (absent) | `lv.DISPLAY_ROTATION._90` | gives landscape 320x240 |
+| indev section name | `[xpt2046.indev]` | `[XPT2046.indev]` | TOML reader needs the class name, case-sensitive |
+
+Unchanged from upstream: the SPI bus pins, `[display.init] params = [1]`,
+`[display.set_backlight] params = [100]`, `color_space` and `rgb565_byte_swap`. Every edit
+above is explained in more detail in the bullets earlier in this section.
+
 ## Touch calibration (frozen `indev.calibrate()` is unusable here)
 
 The bundled `touch_calibrate.calibrate()` **must not** be used for this board. It forces the
