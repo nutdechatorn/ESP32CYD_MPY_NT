@@ -526,6 +526,29 @@ anim.set_path_cb(lv.anim_t.path_ease_in_out)
 anim.start()
 ```
 
+### 8.11 Clearing the screen
+
+There is no `clear()` on the display driver — clear at the LVGL object level:
+
+```python
+scr = lv.screen_active()
+
+scr.clean()                                   # delete every child widget
+scr.set_style_bg_color(lv.color_black(), 0)   # (optional) reset the background
+
+obj.delete()                                  # delete a single widget
+
+lv.screen_load(lv.obj())                      # switch to a brand-new empty screen
+```
+
+- `clean()` is an `lv.obj` method: it deletes all children of the screen but keeps
+  the screen object and its background style.
+- To fully reset the look, set the background colour/opacity afterwards
+  ([§8.5](#85-colours-and-opacity)).
+- Switching screens: the previous screen stays in RAM unless you delete it — pass
+  `auto_del=True` to `lv.screen_load_anim(...)` ([§8.1](#81-screens)).
+- The clear only becomes visible once the LVGL loop runs ([§8.9](#89-the-main-loop)).
+
 ---
 
 ## 9. LVGL widgets
