@@ -25,5 +25,5 @@ Full API reference with examples for every function:
 
 ## SHA256 (for reference)
 
-- `esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython.bin`: `bd312557ffaac8f41659558fa040cf9dc72f6cc5d5acae739c1c8e67de7b190b`
-- `thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-thonny.bin`: `26fb7d8d88cac1c1171824dd0c16091f1db308eb9915ddeb3fe77cb6421652c9`
+- `esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython.bin`: `77c4eed219721e6f1cdbd0b82808732c734ede07f680f06f4de1d89f555c6847`
+- `thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-thonny.bin`: `d90f993748524c480a7db7bded3cfae2a7fd5cf2cbeca50805bc60332d8e6556`

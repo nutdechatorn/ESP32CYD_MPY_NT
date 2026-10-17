@@ -39,6 +39,7 @@ Use the included `run.sh` wrapper:
 ```bash
 ./run.sh test_display.py
 ./run.sh test_backlight.py
+./run.sh test_rotation.py
 ./run.sh test_touch.py
 ./run.sh test_lvgl.py
 ./run.sh test_wifi.py
@@ -90,6 +91,7 @@ Note: `mpremote` does **not** take `--port`; use `connect <port>` or the
 | ------ | ---------------- | ------------ |
 | `boot_check.py` | imports hardware, firmware info, backlight + colour flash | no |
 | `test_pattern.py` | full-panel coverage, orientation, corner colours | no |
+| `test_rotation.py` | cycles `_0` / `_90` / `_180` / `_270`; each must be upright (no mirror) | no |
 | `test_display.py` | ILI9341 panel: colour fills then R/G/B bars | no |
 | `test_backlight.py` | PWM backlight fade 0–100% | no |
 | `test_touch.py` | XPT2046 calibration + live coordinates + tracking dot | yes |

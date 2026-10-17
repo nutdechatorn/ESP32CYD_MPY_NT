@@ -50,13 +50,15 @@ color_space = "lv.COLOR_FORMAT.RGB565"
 rgb565_byte_swap = true
 
 [display._ORIENTATION_TABLE]
-# Indexed by rotation; each entry is the MADCTL value for that rotation.
-# index 0 (rot _0)   = 0x00  native portrait 240x320
-# index 1 (rot _90)  = 0x20  MV only -> upright landscape 320x240 (verified on
-#                            the classic CYD). NOT 0x60/0xA0, which are mirrored.
-# index 2 (rot _180) = 0xC0
-# index 3 (rot _270) = 0xA0
-value = [0, 32, 192, 160]
+# Indexed by rotation; each entry is the MADCTL value for that rotation
+# (BGR bit 0x08 is OR'd in by color_byte_order at runtime).
+# Rule: two rotations 180 deg apart differ by XOR 0xC0 (toggle MX|MY);
+# the MV bit (0x20) marks landscape (_90/_270) vs portrait (_0/_180).
+# index 0 (rot _0)   = 0x40  MX       -> portrait,  upright (eff 0x48)
+# index 1 (rot _90)  = 0x20  MV       -> landscape, upright (eff 0x28)
+# index 2 (rot _180) = 0x80  MY       -> portrait,  upside-down of _0 (0x40^0xC0)
+# index 3 (rot _270) = 0xE0  MV|MX|MY -> landscape, upside-down of _90 (0x20^0xC0)
+value = [64, 32, 128, 224]
 
 
 [display.set_power]

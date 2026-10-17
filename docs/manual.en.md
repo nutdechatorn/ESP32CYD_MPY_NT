@@ -169,7 +169,7 @@ display = ili9341.ILI9341(
     color_space=lv.COLOR_FORMAT.RGB565,
     rgb565_byte_swap=True,
 )
-display._ORIENTATION_TABLE = [0, 32, 192, 160]  # index 1 (_90) = MADCTL 0x20
+display._ORIENTATION_TABLE = [64, 32, 128, 224]  # all 4 rotations upright (see note)
 display.set_power(True)
 display.init(1)
 display.set_rotation(lv.DISPLAY_ROTATION._90)   # landscape 320x240
@@ -179,6 +179,12 @@ indev = xpt2046.XPT2046(device=indev_device)
 
 task_handler.TaskHandler()                       # pumps LVGL timers + flush
 ```
+
+> `_ORIENTATION_TABLE` holds one ILI9341 MADCTL byte per rotation (the BGR bit
+> `0x08` is OR'd in at runtime). Here it is `[0x40, 0x20, 0x80, 0xE0]`: the `MV`
+> bit (`0x20`) marks landscape (`_90` / `_270`) and two rotations 180 apart differ
+> by XOR `0xC0`. The stock `[0, 96, 192, 160]` makes the image **mirror**; an older
+> `[0, 32, 192, 160]` mirrored `_0` and `_270`. Only change this if you swap the panel.
 
 After `import display` you have two useful objects:
 

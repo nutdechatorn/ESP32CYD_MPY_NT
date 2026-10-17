@@ -166,7 +166,7 @@ display = ili9341.ILI9341(
     color_space=lv.COLOR_FORMAT.RGB565,
     rgb565_byte_swap=True,
 )
-display._ORIENTATION_TABLE = [0, 32, 192, 160]  # index 1 (_90) = MADCTL 0x20
+display._ORIENTATION_TABLE = [64, 32, 128, 224]  # ทั้ง 4 rotation หงายถูก (ดูหมายเหตุ)
 display.set_power(True)
 display.init(1)
 display.set_rotation(lv.DISPLAY_ROTATION._90)   # แนวนอน 320x240
@@ -176,6 +176,12 @@ indev = xpt2046.XPT2046(device=indev_device)
 
 task_handler.TaskHandler()                       # ปั๊ม timer + flush ของ LVGL
 ```
+
+> `_ORIENTATION_TABLE` เก็บไบต์ MADCTL ของ ILI9341 หนึ่งค่าต่อหนึ่ง rotation
+> (บิต BGR `0x08` จะถูก OR เข้าไปตอนรันไทม์) ที่นี่ใช้ `[0x40, 0x20, 0x80, 0xE0]`:
+> บิต `MV` (`0x20`) บอกโหมดแนวนอน (`_90` / `_270`) และ rotation ที่ห่างกัน 180°
+> จะต่างกันที่ XOR `0xC0` ค่าเริ่มต้น `[0, 96, 192, 160]` ทำให้ภาพ **กลับด้าน**;
+> ค่าเก่า `[0, 32, 192, 160]` ทำให้ `_0` และ `_270` กลับด้าน แก้เฉพาะเมื่อเปลี่ยนจอ
 
 หลัง `import display` คุณจะได้ออบเจ็กต์ที่มีประโยชน์ 2 ตัว:
 

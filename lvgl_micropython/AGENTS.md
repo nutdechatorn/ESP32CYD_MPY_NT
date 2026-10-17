@@ -40,11 +40,14 @@ This is the tailored config for the classic CYD. Key points (already applied):
   find the module but keeps the name as the class, so `[xpt2046.indev]` emits
   `xpt2046.xpt2046(...)` (AttributeError). `[XPT2046.indev]` emits the correct
   `xpt2046.XPT2046(...)`.
-- `[display._ORIENTATION_TABLE] value = [0, 32, 192, 160]`. This is indexed by rotation
-  and each entry is the ILI9341 MADCTL byte for that rotation. **index 1** (used by
-  `set_rotation._90`) is `0x20` = `MV` only -> upright, non-mirrored landscape 320x240.
-  The stock value `96` (`0x60` = `MX|MV`) renders a **mirrored** image; `160` (`0xA0` =
-  `MY|MV`) is its 180-degree flip. Do not use those for the CYD.
+- `[display._ORIENTATION_TABLE] value = [64, 32, 128, 224]`. This is indexed by rotation
+  and each entry is the ILI9341 MADCTL byte for that rotation (the BGR bit `0x08` is OR'd in
+  at runtime by `color_byte_order`). The rule: two rotations 180 degrees apart differ by XOR
+  `0xC0` (toggle MX|MY), and the `MV` bit (`0x20`) marks landscape (`_90`/`_270`) vs portrait
+  (`_0`/`_180`). So index 0 = `0x40` (`MX`), index 1 = `0x20` (`MV`), index 2 = `0x80` (`MY`,
+  = `0x40 ^ 0xC0`) and index 3 = `0xE0` (`MV|MX|MY`, = `0x20 ^ 0xC0`). All four are upright.
+  The stock value `[0, 96, 192, 160]` renders a **mirrored** image; the older
+  `[0, 32, 192, 160]` left `_0` and `_270` mirrored. Do not use those for the CYD.
 - `[ILI9341.display] display_width = 240`, `display_height = 320`: these are the
   **native/rotation-0** dimensions and must match the portrait-native `_ORIENTATION_TABLE`.
   Do **not** set 320x240 here - the driver renders 320 wide but the panel (MADCTL without
@@ -70,7 +73,7 @@ classic CYD. `upstream -> here -> why`:
 | `ILI9341.display.display_width/height` | `320 / 240` | `240 / 320` | panel is portrait-native; the address window overruns otherwise |
 | `backlight_on_state` | `st7789.STATE_PWM` | `ili9341.STATE_PWM` | match the actual driver |
 | `color_byte_order` | (unset = RGB) | `ili9341.BYTE_ORDER_BGR` | CYD panel is BGR; RGB swaps red/blue |
-| `_ORIENTATION_TABLE` | `[0, 96, 192, 160]` | `[0, 32, 192, 160]` | index 1 must be `0x20` (MV only), not mirrored |
+| `_ORIENTATION_TABLE` | `[0, 96, 192, 160]` | `[64, 32, 128, 224]` | `MV` marks landscape, 180-degree pairs differ by `0xC0`; all four rotations upright |
 | `display.set_rotation` | (absent) | `lv.DISPLAY_ROTATION._90` | gives landscape 320x240 |
 | indev section name | `[xpt2046.indev]` | `[XPT2046.indev]` | TOML reader needs the class name, case-sensitive |
 

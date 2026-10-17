@@ -45,9 +45,12 @@ flashes at **`0x0`** (not `0x1000`). Replace `(PORT)` with the macOS serial devi
 - Classic CYD has **no PSRAM**: keep `BOARD_VARIANT=SPIRAM` disabled in the TOML.
 - `backlight_on_state` must match the actual display driver (`ili9341.STATE_PWM`), not `st7789`.
 - **Display is portrait-native**: use `display_width/height = 240/320` + `set_rotation._90`
-  (landscape 320x240), and `_ORIENTATION_TABLE = [0, 32, 192, 160]` (index 1 = MADCTL `0x20`
-  = MV only). The upstream `320/240` + `[0, 96, 192, 160]` gives a skewed/black-banded and
-  mirrored image. Verify with `tests/test_pattern.py`.
+  (landscape 320x240), and `_ORIENTATION_TABLE = [64, 32, 128, 224]` (0x40, 0x20, 0x80, 0xE0;
+  BGR bit `0x08` is OR'd in at runtime). Two rotations 180 apart differ by XOR `0xC0` and the
+  MV bit `0x20` marks landscape, so index 1 = `0x20` (MV only) and index 3 = `0xE0` (MV|MX|MY).
+  The upstream `320/240` + `[0, 96, 192, 160]` gives a skewed/black-banded and mirrored image;
+  the older `[0, 32, 192, 160]` mirrored `_0` and `_270`. Verify all four with
+  `tests/test_pattern.py` / `tests/test_rotation.py`.
 - **Panel is BGR**: set `color_byte_order = "ili9341.BYTE_ORDER_BGR"` in `[ILI9341.display]`.
   The default RGB leaves the image upright but **swaps red/blue** (a drawn red band shows
   blue). BGR makes landscape MADCTL `0x28` (`0x20 | 0x08`), matching TFT_eSPI's CYD.
@@ -76,6 +79,7 @@ the wrapper, which hard-resets the board first:
 cd tests
 ./run.sh boot_check.py      # smoke test
 ./run.sh test_pattern.py    # full coverage / orientation / colours
+./run.sh test_rotation.py   # cycle all 4 rotations, check none is mirrored
 ./run.sh test_display.py
 ./run.sh test_touch.py
 ./run.sh test_lvgl.py

@@ -17,6 +17,7 @@ If Thonny still shows `invalid header`/boot loops, try a full erase first, then 
 - Board: ESP32-2432S028R (ESP32-WROOM-32, 4MB flash, no PSRAM)
 - MicroPython 1.27.0, LVGL 9.4.0, ESP-IDF 5.5.1
 - Display: ILI9341 240x320 (driven 320x240 @ rotation _90, BGR)
+- Orientation: all four rotations upright (`_ORIENTATION_TABLE = [64, 32, 128, 224]`)
 - Touch: XPT2046
 - Size: 2,932,944 bytes (stripped 4 KB from the 0x0 merged image)
-- SHA256: `26fb7d8d88cac1c1171824dd0c16091f1db308eb9915ddeb3fe77cb6421652c9`
+- SHA256: `d90f993748524c480a7db7bded3cfae2a7fd5cf2cbeca50805bc60332d8e6556`
