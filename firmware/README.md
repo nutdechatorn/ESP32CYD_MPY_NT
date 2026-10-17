@@ -1,38 +1,13 @@
 # ESP32 Cheap Yellow Display (ESP32-2432S028R) Firmware
 
-Prebuilt **MicroPython + LVGL** firmware for the classic ESP32 CYD
-(ESP32-2432S028R). This is a single merged image: flash it and you get a Python
-REPL with LVGL and a working display + touch.
+Prebuilt **MicroPython + LVGL** firmware for the classic ESP32 CYD (ESP32-2432S028R). Choose the image appropriate for your flashing tool.
 
-| | |
-| --- | --- |
-| Board | ESP32-2432S028R (ESP32-WROOM-32, 4 MB flash, **no PSRAM**) |
-| Display | ILI9341 240x320 panel, driven as landscape 320x240 (`set_rotation._90`, BGR) |
-| Touch | XPT2046 (resistive) |
-| MicroPython | 1.27.0 |
-| LVGL | 9.4.0 |
-| ESP-IDF | 5.5.1 |
-| File | `ESP32-CYD-2432S028R-lvgl-micropython.bin` (merged, 2,937,040 bytes) |
-| SHA256 | `bd312557ffaac8f41659558fa040cf9dc72f6cc5d5acae739c1c8e67de7b190b` |
+## Available images
 
-## Flash
-
-Flash the merged image at offset **`0x0`**. You need
-[esptool](https://github.com/espressif/esptool) (`pip install esptool`).
-
-macOS / Linux:
-
-```bash
-python -m esptool --chip esp32 -p /dev/ttyUSB0 -b 460800 \
-  --before default_reset --after hard_reset \
-  write_flash --flash_mode dio --flash_size 4MB --flash_freq 40m --erase-all \
-  0x0 ESP32-CYD-2432S028R-lvgl-micropython.bin
-```
-
-Windows: use `-p COMx` (check Device Manager for the port). On macOS the port is
-usually `/dev/cu.usbserial-*` or `/dev/cu.wchusbserial*`.
-
-After flashing, open the REPL at **115200** baud (e.g. `mpremote connect <port>`).
+| Folder | Flash offset | Intended for | Notes |
+|---|---|---|---|
+| [`esptool-0x0/`](./esptool-0x0/) | `0x0` | `esptool` (CLI) | Original merged image (recommended). Bootloader/parttable/app correctly placed when flashed at `0x0`. |
+| [`thonny-0x1000/`](./thonny-0x1000/) | `0x1000` | **Thonny** (ESP32 flasher) | First 0x1000 bytes stripped so Thonny's `0x1000` write lands bootloader/parttable/app at the correct flash addresses. |
 
 ## Usage manual
 
@@ -41,9 +16,14 @@ Full API reference with examples for every function:
 - English: [`../docs/manual.en.md`](../docs/manual.en.md)
 - Thai (ไทย): [`../docs/manual.th.md`](../docs/manual.th.md)
 
-## Notes
+## Quick notes
 
-- `--erase-all` wipes the whole flash, including the touch calibration stored in
-  NVS. Re-calibrate with the test helper (`tests/board.py:calibrate_touch()`).
-- The application partition is nearly full (about 3.9 KB free).
-- To build this image yourself, see `lvgl_micropython/AGENTS.md`.
+- Port on macOS: usually `/dev/cu.usbserial-*` or `/dev/cu.wchusbserial*`
+- `--erase-all` wipes the whole flash (including saved touch calibration). After flashing, you may need to recalibrate with `tests/board.py:calibrate_touch()`.
+- The application partition is nearly full (~3.9 KB free).
+- To build this image yourself, see `../lvgl_micropython/AGENTS.md`.
+
+## SHA256 (for reference)
+
+- `esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython.bin`: `bd312557ffaac8f41659558fa040cf9dc72f6cc5d5acae739c1c8e67de7b190b`
+- `thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-thonny.bin`: `26fb7d8d88cac1c1171824dd0c16091f1db308eb9915ddeb3fe77cb6421652c9`
