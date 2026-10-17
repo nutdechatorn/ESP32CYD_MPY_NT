@@ -34,6 +34,13 @@ usually `/dev/cu.usbserial-*` or `/dev/cu.wchusbserial*`.
 
 After flashing, open the REPL at **115200** baud (e.g. `mpremote connect <port>`).
 
+## Usage manual
+
+Full API reference with examples for every function:
+
+- English: [`../docs/manual.en.md`](../docs/manual.en.md)
+- Thai (ไทย): [`../docs/manual.th.md`](../docs/manual.th.md)
+
 ## Notes
 
 - `--erase-all` wipes the whole flash, including the touch calibration stored in
