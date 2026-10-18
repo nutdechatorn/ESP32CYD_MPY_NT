@@ -36,8 +36,14 @@ for each. All API names were checked against the actual firmware sources
 
 ## 1. What you have
 
-The firmware image `firmware/ESP32-CYD-2432S028R-lvgl-micropython.bin` is a
-single merged image containing:
+The firmware ships in two language variants:
+
+| Variant | Merged image (flash @ `0x0`) | Thonny image (flash @ `0x1000`) |
+| --- | --- | --- |
+| English only | `firmware/en/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-en.bin` | `firmware/en/thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-en-thonny.bin` |
+| English + Thai | `firmware/th/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-th.bin` | `firmware/th/thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-th-thonny.bin` |
+
+Both are a single merged image containing:
 
 | Component | Version |
 | --- | --- |
@@ -96,8 +102,11 @@ pip install esptool
 python -m esptool --chip esp32 -p /dev/cu.usbserial-0001 -b 460800 \
   --before default_reset --after hard_reset \
   write_flash --flash_mode dio --flash_size 4MB --flash_freq 40m --erase-all \
-  0x0 ESP32-CYD-2432S028R-lvgl-micropython.bin
+  0x0 firmware/th/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-th.bin
 ```
+
+(substitute the `en/...` path for the English-only image; see
+[`firmware/README.md`](../firmware/README.md) for all four files and their SHA256.)
 
 Windows: replace the port with `-p COM5` (check Device Manager).
 
@@ -471,6 +480,47 @@ lbl.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
 Only `lv.font_montserrat_12`, `lv.font_montserrat_14`, `lv.font_montserrat_16`
 are built in (plus `lv.font_get_default()`). Symbols such as `lv.SYMBOL.OK`,
 `lv.SYMBOL.CLOSE`, `lv.SYMBOL.PLAY` can be used in text/labels.
+
+#### 8.6.1 Thai text (and any TTF) — `thai.py`
+
+LVGL 9.4 has **no OpenType shaping**, so Thai combining marks (a tone mark stacked
+above an upper vowel, e.g. `ดี้`) are drawn at their default offsets and collide.
+Two things are needed, both only in the **English + Thai** firmware
+(`firmware/th/`):
+
+1. **TinyTTF** to load a real TrueType font at any pixel size, and
+2. the `thai` shaper module on the board filesystem.
+
+The font and `thai.py` are **not** frozen into the image (the app partition is
+nearly full), so copy them once:
+
+```bash
+mpremote connect PORT fs cp tests/fonts/Sarabun-Regular.ttf :Sarabun-Regular.ttf
+mpremote connect PORT fs cp tests/thai.py :thai.py
+```
+
+Then register a filesystem driver and render:
+
+```python
+import lvgl as lv
+import fs_driver
+import thai
+
+fs_driver.fs_register(lv.fs_drv_t(), "A")           # 'A:' -> board filesystem
+
+tf = thai.ThaiFont("A:/Sarabun-Regular.ttf", 14)    # any pixel size (14-24 tested)
+thai.render(lv.screen_active(), tf, "สวัสดีครับ", 10, 10, lv.color_hex(0xFFFFFF))
+```
+
+`thai.render(parent, font, text, x, y, color)` draws one line with the baseline
+top at `(x, y)` and returns the created label objects. Use `thai.text_width(font,
+text)` to measure. The shaper raises each upper mark (upper vowel → tone → other
+marks) so they never overlap, using the font's real glyph metrics. Kerning is
+disabled so the layout matches LVGL exactly. The same API also renders any other
+TTF (Latin, etc.) via `lv.tiny_ttf_create_file_ex`.
+
+See [`../tests/test_thai.py`](../tests/test_thai.py) (shaped vs unshaped) and
+[`../tests/test_thai_sizes.py`](../tests/test_thai_sizes.py) (14–24 px sweep).
 
 ### 8.7 Styling (see also [§11](#11-styles))
 
@@ -1223,6 +1273,8 @@ cd tests
 ./run.sh test_backlight.py
 ./run.sh test_touch.py       # needs taps
 ./run.sh test_lvgl.py        # needs taps
+./run.sh test_thai.py        # Thai shaping (needs the TH firmware + font)
+./run.sh test_thai_sizes.py  # Thai at 14/16/18/20/22/24 px (TH firmware + font)
 ./run.sh test_wifi.py
 ```
 

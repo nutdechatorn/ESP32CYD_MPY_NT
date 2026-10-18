@@ -36,8 +36,14 @@ freeze ไว้ และสคริปต์ใน `tests/`)
 
 ## 1. สิ่งที่คุณได้มา
 
-ไฟล์เฟิร์มแวร์ `firmware/ESP32-CYD-2432S028R-lvgl-micropython.bin` เป็นภาพรวม
-(merged image) ไฟล์เดียว ประกอบด้วย:
+เฟิร์มแวร์มีให้เลือก 2 ภาษา:
+
+| แบบ | ไฟล์ merged (แฟลช @ `0x0`) | ไฟล์ Thonny (แฟลช @ `0x1000`) |
+| --- | --- | --- |
+| อังกฤษล้วน | `firmware/en/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-en.bin` | `firmware/en/thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-en-thonny.bin` |
+| อังกฤษ + ไทย | `firmware/th/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-th.bin` | `firmware/th/thonny-0x1000/ESP32-CYD-2432S028R-lvgl-micropython-th-thonny.bin` |
+
+ทั้งคู่เป็นภาพรวม (merged image) ไฟล์เดียว ประกอบด้วย:
 
 | องค์ประกอบ | เวอร์ชัน |
 | --- | --- |
@@ -94,8 +100,11 @@ pip install esptool
 python -m esptool --chip esp32 -p /dev/cu.usbserial-0001 -b 460800 \
   --before default_reset --after hard_reset \
   write_flash --flash_mode dio --flash_size 4MB --flash_freq 40m --erase-all \
-  0x0 ESP32-CYD-2432S028R-lvgl-micropython.bin
+  0x0 firmware/th/esptool-0x0/ESP32-CYD-2432S028R-lvgl-micropython-th.bin
 ```
+
+(ถ้าใช้อังกฤษล้วนให้เปลี่ยนเป็นพาธ `en/...`; ดูไฟล์ทั้งสี่และค่า SHA256 ได้ที่
+[`firmware/README.md`](../firmware/README.md))
 
 Windows: เปลี่ยนพอร์ตเป็น `-p COM5` (ดูจาก Device Manager)
 
@@ -464,6 +473,46 @@ lbl.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
 มีฟอนต์ในตัวเฉพาะ `lv.font_montserrat_12`, `lv.font_montserrat_14`,
 `lv.font_montserrat_16` (และ `lv.font_get_default()`) สัญลักษณ์เช่น
 `lv.SYMBOL.OK`, `lv.SYMBOL.CLOSE`, `lv.SYMBOL.PLAY` ใช้ในข้อความ/ป้ายได้
+
+#### 8.6.1 ข้อความไทย (และ TTF อื่น ๆ) — `thai.py`
+
+LVGL 9.4 **ไม่มี OpenType shaping** ดังนั้นวรรณยุกต์/สระบนที่ซ้อนกัน (เช่น `ดี้`)
+จะถูกวาดตามระยะดีฟอลต์และทับกัน ต้องใช้สองอย่าง ซึ่งมีเฉพาะเฟิร์มแวร์
+**อังกฤษ + ไทย** (`firmware/th/`):
+
+1. **TinyTTF** สำหรับโหลด TrueType ฟอนต์ขนาดพิกเซลใดก็ได้ และ
+2. โมดูล shaper `thai` บนไฟล์ซิสเต็มของบอร์ด
+
+ฟอนต์และ `thai.py` **ไม่ได้** freeze อยู่ในอิมเมจ (พาร์ทิชันแอปเกือบเต็ม)
+จึงต้องคัดลอกลงบอร์ดครั้งเดียว:
+
+```bash
+mpremote connect PORT fs cp tests/fonts/Sarabun-Regular.ttf :Sarabun-Regular.ttf
+mpremote connect PORT fs cp tests/thai.py :thai.py
+```
+
+จากนั้นลงทะเบียนไดรเวอร์ไฟล์ซิสเต็มและวาดข้อความ:
+
+```python
+import lvgl as lv
+import fs_driver
+import thai
+
+fs_driver.fs_register(lv.fs_drv_t(), "A")           # 'A:' -> ไฟล์ซิสเต็มบอร์ด
+
+tf = thai.ThaiFont("A:/Sarabun-Regular.ttf", 14)    # ขนาดพิกเซลใดก็ได้ (ทดสอบ 14-24)
+thai.render(lv.screen_active(), tf, "สวัสดีครับ", 10, 10, lv.color_hex(0xFFFFFF))
+```
+
+`thai.render(parent, font, text, x, y, color)` วาดหนึ่งบรรทัดโดยให้ขอบบนของบรรทัด
+(baseline top) ที่ `(x, y)` และคืนลิสต์ของ label ที่สร้าง ใช้ `thai.text_width(font,
+text)` วัดความกว้างได้ ตัว shaper จะยกเครื่องหมายบนแต่ละตัว (สระบน → วรรณยุกต์ →
+เครื่องหมายอื่น) ไม่ให้ทับกัน โดยอ่าน metric จริงของ glyph จากฟอนต์ และปิด kerning
+เพื่อให้ตำแหน่งตรงกับ LVGL ทุกประการ API เดียวกันยังใช้เรนเดอร์ TTF อื่น ๆ ได้ด้วย
+(`lv.tiny_ttf_create_file_ex`)
+
+ดู [`../tests/test_thai.py`](../tests/test_thai.py) (เทียบ shaped กับ unshaped) และ
+[`../tests/test_thai_sizes.py`](../tests/test_thai_sizes.py) (ไล่ขนาด 14–24 px)
 
 ### 8.7 การใส่สไตล์ (ดูเพิ่มที่ [§11](#11-สไตล์-styles))
 
@@ -1215,6 +1264,8 @@ cd tests
 ./run.sh test_backlight.py
 ./run.sh test_touch.py       # ต้องแตะ
 ./run.sh test_lvgl.py        # ต้องแตะ
+./run.sh test_thai.py        # จัดรูปข้อความไทย (ต้องมีเฟิร์มแวร์ TH + ฟอนต์)
+./run.sh test_thai_sizes.py  # ไทยที่ขนาด 14/16/18/20/22/24 px (TH + ฟอนต์)
 ./run.sh test_wifi.py
 ```
 

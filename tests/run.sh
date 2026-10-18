@@ -40,7 +40,11 @@ finally:
 time.sleep(2.0)
 PYEOF
 
-# Make sure board.py / any helper modules are on the device.
+# Make sure board.py / any helper modules / font are on the device.
 "$PY" -m mpremote connect "$PORT" cp "$(dirname "$SCRIPT_PATH")/board.py" :board.py >/dev/null
+for _m in thai.py fonts/Sarabun-Regular.ttf; do
+    _p="$(dirname "$SCRIPT_PATH")/$_m"
+    [ -f "$_p" ] && "$PY" -m mpremote connect "$PORT" cp "$_p" ":$(basename "$_m")" >/dev/null
+done
 
 exec "$PY" -m mpremote connect "$PORT" run "$SCRIPT_PATH"

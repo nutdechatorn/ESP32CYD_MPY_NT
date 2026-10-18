@@ -42,6 +42,8 @@ Use the included `run.sh` wrapper:
 ./run.sh test_rotation.py
 ./run.sh test_touch.py
 ./run.sh test_lvgl.py
+./run.sh test_thai.py          # needs the English + Thai firmware
+./run.sh test_thai_sizes.py    # needs the English + Thai firmware
 ./run.sh test_wifi.py
 ```
 
@@ -69,7 +71,8 @@ Under the hood the wrapper does, for a given script:
 # 1. hard reset via DTR/RTS
 # 2. copy board.py onto the device
 mpremote connect PORT cp tests/board.py :board.py
-# 3. run the script
+# 3. copy any helper modules / fonts present (thai.py, fonts/Sarabun-Regular.ttf)
+# 4. run the script
 mpremote connect PORT run tests/<script>.py
 ```
 
@@ -96,6 +99,8 @@ Note: `mpremote` does **not** take `--port`; use `connect <port>` or the
 | `test_backlight.py` | PWM backlight fade 0–100% | no |
 | `test_touch.py` | XPT2046 calibration + live coordinates + tracking dot | yes |
 | `test_lvgl.py` | LVGL widgets (button / slider / label) + input | yes |
+| `test_thai.py` | shaped Thai vs unshaped reference (needs TH firmware + font) | no |
+| `test_thai_sizes.py` | same Thai line at 14/16/18/20/22/24 px (needs TH firmware + font) | no |
 | `test_wifi.py` | ESP32 Wi-Fi radio scan (does not connect) | no |
 
 Stop a script that loops (like `test_touch.py`) with `Ctrl-C`, or press
@@ -138,6 +143,44 @@ fix, `get_point` is within ~6px of the actual tap.
 Because calibration and touch reading need a person to tap the panel, these two
 scripts cannot be fully verified head-less. They also end in a polling loop so
 the LVGL loop keeps running after `mpremote run` would otherwise return.
+
+## Thai text
+
+`thai.py` is a minimal Thai shaper + renderer for LVGL. LVGL 9.4 has **no
+OpenType shaping** (no HarfBuzz/GPOS), so a tone mark above an upper vowel
+(e.g. `ดี้`) is normally drawn at its default offset and collides. `thai.py`
+splits text into clusters and re-stacks the upper marks using the font's real
+glyph metrics, drawing one `lv.label` per run of base-width glyphs plus a raised
+label per upper mark.
+
+It needs:
+
+- the **English + Thai** firmware image (`firmware/th/...`, which enables
+  TinyTTF), and
+- a TTF on the board filesystem — `tests/fonts/Sarabun-Regular.ttf` (SIL OFL).
+
+`run.sh` copies `thai.py` and the font automatically when they are present, so
+`./run.sh test_thai.py` just works. To do it manually:
+
+```bash
+mpremote connect PORT fs cp tests/thai.py :thai.py
+mpremote connect PORT fs cp tests/fonts/Sarabun-Regular.ttf :Sarabun-Regular.ttf
+```
+
+Minimal use:
+
+```python
+import lvgl as lv, fs_driver, thai
+fs_driver.fs_register(lv.fs_drv_t(), "A")          # 'A:' -> board filesystem
+tf = thai.ThaiFont("A:/Sarabun-Regular.ttf", 14)   # any pixel size (14-24 tested)
+thai.render(lv.screen_active(), tf, "สวัสดีครับ", 10, 10, lv.color_hex(0xFFFFFF))
+```
+
+Font size is a runtime parameter (TinyTTF rasterises the TTF on the fly): no
+rebuild or reflash is needed to change it. 14 px is verified legible; the app
+partition is too full to freeze the font, so it stays on the filesystem.
+
+See `manual.en.md` / `manual.th.md` §8.6.1 for the full explanation.
 
 ## LVGL API notes (this binding)
 

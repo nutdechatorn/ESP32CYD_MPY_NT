@@ -117,19 +117,35 @@ corners + centre; `test_touch.py` dot and `test_lvgl.py` button/slider verified 
 
 ## Build (recommended)
 
+Two variants, selected by the TinyTTF define. Use the wrapper:
+
 ```bash
 cd /Users/tony/Documents/VScode/AI_base/ESP32CYD_MPY/lvgl_micropython
-python3 make.py esp32 --toml display_configs/CYD-2432S028R.toml --ccache --no-scrub
+./build.sh en     # English only  - TinyTTF off, ~2.94 MB -> build/lvgl_micropy_CYD-en.bin
+./build.sh th     # English+Thai  - TinyTTF on,  ~3.00 MB -> build/lvgl_micropy_CYD-th.bin
 ```
 
+`build.sh` runs the equivalent of:
+
+```bash
+python3 make.py esp32 --toml display_configs/CYD-2432S028R.toml --ccache --no-scrub
+# TH only: insert  LV_CFLAGS=-DMICROPY_TINY_TTF=1  as the 2nd arg
+```
+
+- `MICROPY_TINY_TTF` is defined in `lib/lv_conf.h` and mapped to `LV_USE_TINY_TTF`
+  (`lib/lv_conf.h:832`). Passing it via `LV_CFLAGS` (rather than editing `lv_conf.h`)
+  keeps a single source tree for both variants, and `LV_CFLAGS` reaches both the C compile
+  (`ext_mod/lvgl/micropython.cmake:59`) and the binding generator (same file, line 34).
+  Verified: the EN `lv_mp.c` has no `tiny_ttf_*`, the TH one has 8.
+- Measured: EN app `0x2bd0d0`, partition `0x2be000` (0xf30 free); TH app `0x2cd590`,
+  partition `0x2ce000` (0xa70 free). TinyTTF costs ~65 KB.
 - First build takes ~15-30 min (toolchain download + ~2400 compile targets, twice if the
   partition needs auto-resizing). Rebuilds with ccache are much faster.
 - `--no-scrub` keeps the build tree between runs (fast iteration). Drop it for a clean build.
 - The process is long; if running under a tool with a short timeout, run it in the
   background and poll the log, e.g.:
   ```bash
-  nohup python3 make.py esp32 --toml display_configs/CYD-2432S028R.toml --ccache --no-scrub \
-    > /tmp/cyd_build.log 2>&1 &
+  nohup ./build.sh th > /tmp/cyd_build.log 2>&1 &
   ```
 
 ### Explicit-driver build (no TOML)
@@ -146,12 +162,16 @@ python3 make.py esp32 BOARD=ESP32_GENERIC --flash-size=4 DISPLAY=ili9341 INDEV=x
 Confirmed result (single merged image, flashed at offset `0x0`):
 
 - `build/lvgl_micropy_ESP32_GENERIC-4.bin` (~2.9 MB)
+- `build.sh` copies it to `build/lvgl_micropy_CYD-en.bin` (2,937,040 B) or
+  `build/lvgl_micropy_CYD-th.bin` (3,003,792 B).
 
 Intermediate artifacts (in case you need them individually) are under
 `lib/micropython/ports/esp32/build-ESP32_GENERIC/`:
 `bootloader/bootloader.bin`, `partition_table/partition-table.bin`, `micropython.bin`.
 
 The builder merges bootloader + partition table + app into the single `build/*.bin`.
+Switching variants regenerates `lv_mp.c` and the partition table (EN and TH get different
+app partitions), so rebuild both from the same tree with `--no-scrub` and it just works.
 
 ## Flashing
 
@@ -181,7 +201,7 @@ command (replace `(PORT)`):
 
 - **PSRAM:** classic CYD has none. Keep `BOARD_VARIANT=SPIRAM` off. The SPIRAM image still
   boots (MicroPython sets `CONFIG_SPIRAM_IGNORE_NOTFOUND=y`) but wastes RAM/heap layout.
-- **Size (important):** the app partition is ~99.9% full (~3.9 KB free) on this build.
+- **Size (important):** the app partition is ~99.9% full (EN ~3.9 KB free, TH ~2.7 KB free).
   The app partition auto-resizes: the first ESP-IDF pass reports
   "app partition is too small for binary micropython.bin" and triggers a second pass with a
   larger partition - this is normal and expected, not an error. If you add features,

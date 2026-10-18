@@ -9,23 +9,47 @@ This repo builds a **MicroPython + LVGL** firmware image for the
 (ESP32-WROOM-32, 4 MB flash, no PSRAM, ILI9341 240x320 portrait panel driven as 320x240
 landscape via rotation, XPT2046 touch).
 
-Two top-level directories:
+Top-level directories:
 
 - `lvgl_micropython/` - the build system (upstream `lvgl-micropython/lvgl_micropython`, branch `main`).
-  Contains `make.py`, `builder/`, `display_configs/`, and the target config `display_configs/CYD-2432S028R.toml`.
+  Contains `make.py`, `builder/`, `display_configs/`, the target config
+  `display_configs/CYD-2432S028R.toml`, and the `build.sh` variant wrapper.
   The detailed, verified build guide lives in `lvgl_micropython/AGENTS.md` - read it before changing the build.
+- `tests/` - standalone board test scripts and the Thai shaper (`thai.py`), run over serial with `tests/run.sh`.
+- `firmware/` - prebuilt images, split by language (`en/`, `th/`) and flashing tool
+  (`esptool-0x0/`, `thonny-0x1000/`).
+- `docs/` - user manual (English / Thai).
 - `ESP32-Cheap-Yellow-Display/` - CYD hardware docs and pinout reference only (no build here).
 
 ## Build (run from `lvgl_micropython/`)
 
+There are **two firmware variants**, selected by a single TinyTTF define. Use the wrapper:
+
 ```bash
-python3 make.py esp32 --toml display_configs/CYD-2432S028R.toml --ccache --no-scrub
+cd lvgl_micropython
+./build.sh en     # English only  - TinyTTF disabled, ~2.94 MB  -> build/lvgl_micropy_CYD-en.bin
+./build.sh th     # English+Thai  - TinyTTF enabled,  ~3.00 MB  -> build/lvgl_micropy_CYD-th.bin
 ```
 
+`build.sh` just runs `make.py esp32 [LV_CFLAGS=...] --toml display_configs/CYD-2432S028R.toml
+--ccache --no-scrub` and copies the merged image to a variant-named file. The equivalent raw
+command is:
+
+```bash
+python3 make.py esp32 --toml display_configs/CYD-2432S028R.toml --ccache --no-scrub
+# TH variant only: add  LV_CFLAGS=-DMICROPY_TINY_TTF=1  as the 2nd argument
+```
+
+- The **only** difference is `MICROPY_TINY_TTF`, which `lib/lv_conf.h` maps to
+  `LV_USE_TINY_TTF`. Pass it via `LV_CFLAGS` (never by editing `lv_conf.h`) so that both the
+  C compile *and* the LVGL MicroPython binding generator (`ext_mod/lvgl/micropython.cmake`
+  passes `${LV_CFLAGS}` to the generator) see it. Verified: the EN binding has no
+  `tiny_ttf_*` symbols, the TH binding has 8.
 - Slow (~15-30 min first run): ESP-IDF v5.5.1 + tools are auto-installed to `~/.espressif/`,
   then ~2400 compile targets, and a second pass if the app partition auto-resizes.
 - Run it in the background and poll `/tmp/cyd_build.log` if working under a short tool timeout.
-- Output: `lvgl_micropython/build/lvgl_micropy_ESP32_GENERIC-4.bin` (~2.9 MB merged image).
+- Output: `lvgl_micropython/build/lvgl_micropy_ESP32_GENERIC-4.bin` (~2.9 MB merged image),
+  copied by `build.sh` to `build/lvgl_micropy_CYD-<variant>.bin`.
 
 ## Flash
 
@@ -83,8 +107,12 @@ cd tests
 ./run.sh test_display.py
 ./run.sh test_touch.py
 ./run.sh test_lvgl.py
+./run.sh test_thai.py       # shaped Thai vs unshaped (needs the TH firmware + font)
+./run.sh test_thai_sizes.py # sweep 24/22/20/18/16/14 px on one screen
 ./run.sh test_wifi.py
 ```
+
+`run.sh` also copies `tests/thai.py` to the board if present.
 
 - `tests/board.py` does `import display` (the frozen module that brings up ILI9341 + XPT2046).
 - **Hard reset is required before each run**: mpremote soft-resets on connect, but an ESP32
@@ -99,6 +127,35 @@ cd tests
   `board.touch.get_point(pt)` instead. Objects use `add_flag` / `remove_flag` (no
   `clear_flag`). `e.get_target()` returns an opaque `Blob`; use the widget object directly
   (e.g. `slider.get_value()`) or `e.get_target_obj()`.
+
+## Thai text (TTF + minimal shaper)
+
+LVGL 9.4 has **no OpenType shaping** (no HarfBuzz/GPOS), so Thai combining marks
+(a tone above an upper vowel, e.g. `ดี้`) are drawn at their default offsets and overlap.
+Thai support is therefore a runtime concern, not a build one:
+
+- **Only the TH variant** (`./build.sh th`) has TinyTTF. In firmware it is used through
+  LVGL: `lv.tiny_ttf_create_file_ex(path, size, lv.FONT_KERNING.NONE, cache)`.
+- The shaper is `tests/thai.py`: it clusters Thai text, re-stacks upper marks using real
+  glyph metrics from `lv.font_t.get_glyph_dsc`, and renders with one `lv.label` per run of
+  "base width" glyphs plus a raised label per upper mark. Verified on hardware.
+- **Font size**: TinyTTF rasterises the TTF on the fly, so `ThaiFont(path, size)` accepts any
+  pixel size with no rebuild/flash. Verified legible and correctly stacked from **14 px**
+  (line_height 18) up to 24 px; `tests/test_thai.py` uses **14** by default and
+  `tests/test_thai_sizes.py` sweeps 24/22/20/18/16/14 on one screen for comparison. Cache
+  memory depends on the number of distinct glyphs, not the size.
+- It relies on LVGL geometry (`lib/lvgl/src/draw/lv_draw_label.c`):
+  `glyph_top = pos.y + (line_height - base_line) - box_h - ofs_y`, so `ofs_y` is the
+  distance from the baseline up to the glyph's *bottom* edge; a mark is raised by moving
+  its label up. Kerning is disabled so the shaper's pen maths match LVGL's layout.
+- `lv.LV_FONT_KERNING` is exposed as **`lv.FONT_KERNING`** (no `LV_` prefix).
+- The font and `thai.py` live on the board filesystem (the app partition is ~99.9% full,
+  so they cannot be frozen). Copy them with:
+  `mpremote connect PORT fs cp tests/thai.py :thai.py` and
+  `mpremote connect PORT fs cp tests/fonts/Sarabun-Regular.ttf :Sarabun-Regular.ttf`,
+  then register a letter-`A` FS driver before creating the font:
+  `import fs_driver; fs_driver.fs_register(lv.fs_drv_t(), "A")` (must come *after*
+  `import display`, which calls `lv.init()`).
 
 ## Conventions
 
